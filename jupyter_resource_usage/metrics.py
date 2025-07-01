@@ -3,6 +3,8 @@ try:
 except ImportError:
     psutil = None
 
+import os
+import subprocess
 from jupyter_server.serverapp import ServerApp
 
 
@@ -91,3 +93,96 @@ class PSUtilMetricsLoader:
         return self.metrics(
             self.config.process_disk_metrics, self.config.system_disk_metrics
         )
+
+
+class ContainerMetricsLoader:
+    @staticmethod
+    def get_cpu_count():
+        v2_cpu_max = "/sys/fs/cgroup/cpu.max"
+        v1_cpu_quota = "/sys/fs/cgroup/cpu/cpu.cfs_quota_us"
+        v1_cpu_period = "/sys/fs/cgroup/cpu/cpu.cfs_period_us"
+
+        if os.path.exists(v2_cpu_max):
+            with open(v2_cpu_max) as cpu:
+                cpu_quota, cpu_period = cpu.read().strip().split(" ")
+        elif os.path.exists(v1_cpu_quota) and os.path.exists(v1_cpu_period):
+            with open(v1_cpu_quota) as cpu:
+                cpu_quota = cpu.read().strip()
+            with open(v1_cpu_period) as period:
+                cpu_period = period.read().strip()
+        else:
+            return psutil.cpu_count()
+        
+        if cpu_quota == "max" or cpu_quota == "-1":
+            return psutil.cpu_count()
+
+        return int(cpu_quota) // int(cpu_period) if int(cpu_period) > 0 else 1
+    
+    @staticmethod
+    def get_cpu_percent():
+        v2_cpu_usage = "/sys/fs/cgroup/cpu.stat"
+        v1_cpu_usage = "/sys/fs/cgroup/cpu/cpuacct.usage"
+
+        if os.path.exists(v2_cpu_usage):
+            with open(v2_cpu_usage) as usage:
+                for line in usage:
+                    if line.startswith("usage_usec"):
+                        return int(line.split()[1]) / 1000000.0
+        elif os.path.exists(v1_cpu_usage):
+            with open(v1_cpu_usage) as usage:
+                return int(usage.read().strip()) / 1000000.0
+        
+        return psutil.cpu_percent(interval=0.05)
+
+    @staticmethod
+    def get_physical_memory():
+        v2_mem_limit = '/sys/fs/cgroup/memory.max'
+        v1_mem_limit = '/sys/fs/cgroup/memory/memory.limit_in_bytes'
+
+        if os.path.exists(v2_mem_limit):
+            with open(v2_mem_limit) as limit:
+                mem_limit_str = limit.read().strip()
+            mem_limit = int(mem_limit_str) if mem_limit_str != "max" else psutil.virtual_memory().total
+        elif os.path.exists(v1_mem_limit):
+            with open(v1_mem_limit) as limit:
+                mem_limit = int(limit.read().strip())
+        else:
+            return psutil.virtual_memory().total
+        
+        return mem_limit
+
+    @staticmethod
+    def get_memory_pss():
+        v2_mem_usage = "/sys/fs/cgroup/memory.current"
+        v1_mem_usage = "/sys/fs/cgroup/memory/memory.usage_in_bytes"
+
+        if os.path.exists(v2_mem_usage):
+            with open(v2_mem_usage) as usage:
+                mem_usage = int(usage.read().strip())
+        elif os.path.exists(v1_mem_usage):
+            with open(v1_mem_usage) as usage:
+                mem_usage = int(usage.read().strip())
+        else:
+            return psutil.virtual_memory().used
+
+        return mem_usage
+
+    @staticmethod
+    def get_memory_rss():
+        v2_mem_stat = "/sys/fs/cgroup/memory.stat"
+        v1_mem_stat = "/sys/fs/cgroup/memory/memory.stat"
+
+        if os.path.exists(v2_mem_stat):
+            stat_path = v2_mem_stat
+        elif os.path.exists(v1_mem_stat):
+            stat_path = v1_mem_stat
+        else:
+            return psutil.virtual_memory().used
+
+        real_rss = 0
+        with open(stat_path) as stats:
+            for line in stats:
+                stat = line.split()
+                if stat[0] in ['rss', 'inactive_file', 'active_file']:
+                    real_rss += int(stat[1])
+        return real_rss

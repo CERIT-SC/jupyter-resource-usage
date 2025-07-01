@@ -110,7 +110,7 @@ class ResourceUseDisplay(Configurable):
         return int(os.environ.get("MEM_LIMIT", 0))
 
     track_cpu_percent = Bool(
-        default_value=False,
+        default_value=True,
         help="""
         Set to True in order to enable reporting of CPU usage statistics.
         """,
@@ -170,6 +170,26 @@ class ResourceUseDisplay(Configurable):
         """,
     ).tag(config=True)
 
+    track_gpu_mem_usage = Bool(
+        default_value=True,
+        help="""
+        Set to True in order to enable reporting of GPU usage statistics.
+        """,
+    ).tag(config=True)
+
+    gpu_mem_warning_threshold = Float(
+        default_value=0.1,
+        help="""
+        Warn user with flashing lights when GPU usage is within this fraction
+        GPU usage limit.
+
+        For example, if GPU limit is 100%, `gpu_warning_threshold` is 0.1,
+        we will start warning the user when they use (100 - (100 * 0.1)) %.
+
+        Set to 0 to disable warning.
+        """,
+    ).tag(config=True)
+
     enable_prometheus_metrics = Bool(
         default_value=True,
         help="""
@@ -183,3 +203,15 @@ class ResourceUseDisplay(Configurable):
         Set to True in order to show host cpu and host virtual memory info.
         """,
     ).tag(config=True)
+
+    is_container = Bool(
+        default_value=False,
+        help="""
+        Set to True if the Jupyter server is running in a container.
+        This will change the way some metrics are calculated.
+        """,
+    ).tag(config=True)
+
+    @default("is_container")
+    def _is_container_default(self):
+        return bool(os.environ.get("IS_CONTAINER", False))

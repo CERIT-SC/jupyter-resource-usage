@@ -14,6 +14,7 @@ import { MemoryUnit, MEMORY_UNIT_LIMITS, convertToLargestUnit } from './format';
 import { DEFAULT_CPU_LABEL } from './cpuView';
 import { DEFAULT_DISK_LABEL } from './diskView';
 import { DEFAULT_MEMORY_LABEL } from './memoryView';
+import { DEFAULT_GPU_LABEL } from './gpuView';
 
 /**
  * Number of values to keep in memory.
@@ -32,19 +33,21 @@ export namespace ResourceUsage {
     /**
      * A model for holding resource usage warnings.
      */
-    constructor(memory = false, cpu = false, disk = false) {
+    constructor(memory = false, cpu = false, disk = false, gpu_memory = false) {
       this._memory = memory;
       this._cpu = cpu;
       this._disk = disk;
+      this._gpu_memory = gpu_memory;
     }
 
     get hasWarning(): boolean {
-      return this._memory || this._cpu || this._disk;
+      return this._memory || this._cpu || this._disk || this._gpu_memory;
     }
 
     private _memory = false;
     private _cpu = false;
     private _disk = false;
+    private _gpu_memory = false;
   }
 
   export class Model extends VDomModel {
@@ -56,7 +59,12 @@ export namespace ResourceUsage {
     constructor(options: Model.IOptions) {
       super();
       for (let i = 0; i < N_BUFFER; i++) {
-        this._values.push({ memoryPercent: 0, cpuPercent: 0, diskPercent: 0 });
+        this._values.push({
+          memoryPercent: 0,
+          cpuPercent: 0,
+          diskPercent: 0,
+          gpuMemoryPercent: 0,
+        });
       }
       this._poll = new Poll<Private.IMetricRequestResult | null>({
         factory: (): Promise<Private.IMetricRequestResult | null> =>
@@ -79,6 +87,7 @@ export namespace ResourceUsage {
           this._memoryAvailable = false;
           this._cpuAvailable = false;
           this._diskAvailable = false;
+          this._gpuMemoryAvailable = false;
           this._currentMemory = 0;
           this._currentDisk = 0;
           this._maxDisk = 0;
@@ -113,6 +122,9 @@ export namespace ResourceUsage {
     }
     get diskLabel(): string {
       return this._diskLabel;
+    }
+    get gpuLabel(): string {
+      return this._gpuMemoryLabel;
     }
 
     /**
@@ -193,10 +205,38 @@ export namespace ResourceUsage {
     }
 
     /**
+     * The units for GPU memory usages and limits.
+     */
+    get gpuMemoryUnits(): MemoryUnit {
+      return this._gpuMemoryUnits;
+    }
+
+    /**
      * The current cpu percent.
      */
     get currentCpuPercent(): number {
       return this._currentCpuPercent;
+    }
+
+    /**
+     * The current GPU memory usage.
+     */
+    get currentGpuMemory(): number {
+      return this._currentGpuMemory;
+    }
+
+    /**
+     * The GPU memory limit, or null if not specified.
+     */
+    get gpuMemoryLimit(): number | null {
+      return this._gpuMemoryLimit;
+    }
+
+    /**
+     * Whether the GPU memory metric is available.
+     */
+    get gpuMemoryAvailable(): boolean {
+      return this._gpuMemoryAvailable;
     }
 
     /**
@@ -232,8 +272,11 @@ export namespace ResourceUsage {
       if (value === null) {
         this._memoryAvailable = false;
         this._cpuAvailable = false;
+        this._gpuMemoryAvailable = false;
         this._currentMemory = 0;
         this._currentDisk = 0;
+        this._currentGpuMemory = 0;
+        this._gpuMemoryLimit = null;
         this._maxDisk = 0;
         this._memoryLimit = null;
         this._memUnits = 'B';
@@ -248,7 +291,8 @@ export namespace ResourceUsage {
       const usageWarnings = new ResourceUsageWarning(
         value.limits.memory?.warn,
         value.limits.cpu?.warn,
-        value.limits.disk?.warn
+        value.limits.disk?.warn,
+        value.limits.gpu_mem?.warn
       );
 
       this._memoryAvailable = numBytes !== undefined;
@@ -286,10 +330,17 @@ export namespace ResourceUsage {
 
       const currentDiskPercent = Math.min(this._currentDisk / this._maxDisk, 1);
 
+      this._currentGpuMemory = value.gpu_mem_used ?? 0;
+      this._gpuMemoryLimit = value.gpu_mem_total ?? null;
+      this._gpuMemoryAvailable = value.gpu_mem_used !== undefined;
+
       this._values.push({
         memoryPercent,
         cpuPercent: this._currentCpuPercent,
         diskPercent: currentDiskPercent,
+        gpuMemoryPercent: this._gpuMemoryLimit
+          ? this._currentGpuMemory / this._gpuMemoryLimit
+          : 0,
       });
       this._values.shift();
       this.stateChanged.emit(void 0);
@@ -298,18 +349,23 @@ export namespace ResourceUsage {
     private _cpuLabel = DEFAULT_CPU_LABEL;
     private _memLabel = DEFAULT_MEMORY_LABEL;
     private _diskLabel = DEFAULT_DISK_LABEL;
+    private _gpuMemoryLabel = DEFAULT_GPU_LABEL;
     private _memoryAvailable = false;
     private _cpuAvailable = false;
     private _diskAvailable = false;
+    private _gpuMemoryAvailable = false;
     private _currentMemory = 0;
     private _currentDisk = 0;
+    private _currentGpuMemory = 0;
     private _maxDisk = 0;
     private _currentCpuPercent = 0;
     private _memoryLimit: number | null = null;
     private _cpuLimit: number | null = null;
+    private _gpuMemoryLimit: number | null = null;
     private _poll: Poll<Private.IMetricRequestResult | null>;
     private _memUnits: MemoryUnit = 'B';
     private _diskUnits: MemoryUnit = 'B';
+    private _gpuMemoryUnits: MemoryUnit = 'MB';
     private _warn = new ResourceUsageWarning();
     private _values: Model.IMetricValue[] = [];
   }
@@ -346,6 +402,11 @@ export namespace ResourceUsage {
        * The cpu percentage.
        */
       diskPercent: number;
+
+      /**
+       * The gpu memory percentage.
+       */
+      gpuMemoryPercent: number;
     }
   }
 }
@@ -377,6 +438,8 @@ namespace Private {
     cpu_count?: number;
     disk_total?: number;
     disk_used?: number;
+    gpu_mem_used?: number;
+    gpu_mem_total?: number;
     limits: {
       memory?: {
         rss: number;
@@ -389,6 +452,10 @@ namespace Private {
       };
       disk?: {
         max: number;
+        warn: boolean;
+      };
+      gpu_mem?: {
+        gpu_mem: number;
         warn: boolean;
       };
     };

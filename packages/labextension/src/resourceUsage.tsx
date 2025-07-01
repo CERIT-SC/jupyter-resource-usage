@@ -61,6 +61,16 @@ export class ResourceUsageStatus extends VDomRenderer<ResourceUsage.Model> {
         this.model.diskUnits
       } | ${text}`;
     }
+
+    if (this.model.gpuMemoryAvailable) {
+      text = `${this.model.gpuLabel} ${this.model.currentGpuMemory.toFixed(
+        Private.DECIMAL_PLACES
+      )} / ${
+        this.model.gpuMemoryLimit &&
+        this.model.gpuMemoryLimit.toFixed(Private.DECIMAL_PLACES)
+      } ${this.model.gpuMemoryUnits} | ${text}`;
+    }
+
     if (!this.model.usageWarnings.hasWarning) {
       return (
         <TextItem
