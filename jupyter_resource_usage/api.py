@@ -1,13 +1,13 @@
 import json
 from concurrent.futures import ThreadPoolExecutor
 from inspect import isawaitable
-import os
 import subprocess
 import xml.etree.ElementTree as ET
 
+from jupyter_resource_usage.metrics import ContainerMetricsLoader
 import psutil
 import zmq.asyncio
-from jupyter_client.jsonutil import date_default
+from jupyter_client.jsonutil import json_default
 from jupyter_server.base.handlers import APIHandler
 from packaging import version
 from tornado import web
@@ -23,6 +23,7 @@ except ImportError:
     USAGE_IS_SUPPORTED = False
     IPYKERNEL_VERSION = None
 
+HAS_NVIDIA_SMI = True
 
 class ApiHandler(APIHandler):
     executor = ThreadPoolExecutor(max_workers=5)
@@ -33,11 +34,12 @@ class ApiHandler(APIHandler):
         Calculate and return current resource usage metrics
         """
         config = self.settings["jupyter_resource_usage_display_config"]
+        container_metrics = ContainerMetricsLoader()
 
         cur_process = psutil.Process()
         all_processes = [cur_process] + cur_process.children(recursive=True)
 
-        if not config.is_container: 
+        if not config.is_container:
             # Get memory information
             rss = 0
             pss = None
@@ -56,9 +58,9 @@ class ApiHandler(APIHandler):
                 mem_limit = config.mem_limit
         else:
             # Get memory information from container cgroup
-            mem_limit = self.__get_container_physical_memory()
-            rss = self.__get_container_memory_rss()
-            pss = self.__get_container_memory_pss()
+            mem_limit = container_metrics.physical_memory()
+            rss = container_metrics.memory_rss()
+            pss = container_metrics.memory_pss()
 
         limits = {"memory": {"rss": mem_limit, "pss": mem_limit}}
         if config.mem_limit and config.mem_warning_threshold != 0:
@@ -76,7 +78,7 @@ class ApiHandler(APIHandler):
             if not config.is_container:
                 cpu_count = psutil.cpu_count()
             else:
-                cpu_count = self.__get_container_cpu_count()
+                cpu_count = container_metrics.cpu_count()
             
             cpu_percent = await self._get_cpu_percent(all_processes) / cpu_count
 
@@ -160,16 +162,21 @@ class ApiHandler(APIHandler):
 
     @classmethod
     def __get_gpu_usage(cls) -> tuple[int, int] | None:
+        global HAS_NVIDIA_SMI
+
+        if not HAS_NVIDIA_SMI:
+            return None
+
         try:
-            
             result = subprocess.run(
                 ['nvidia-smi', '--query', '--xml-format'],
                 capture_output=True, text=True, check=True
             )
             used, total = cls.__extract_gpu_memory_info(result.stdout)
-
             return used, total
         except FileNotFoundError:
+            HAS_NVIDIA_SMI = False
+            print("nvidia-smi command not found. GPU metrics will not be available.")
             return None
         except subprocess.CalledProcessError as e:
             print(f"Error running nvidia-smi: {e}")
@@ -224,7 +231,27 @@ class KernelUsageHandler(APIHandler):
                 res = await res
             if res:
                 res["kernel_id"] = kernel_id
+
+            if config.is_container:
+                container_metrics = ContainerMetricsLoader()
+                res["content"].update({
+                    "cpu_count": container_metrics.cpu_count(),
+                    "host_cpu_percent": container_metrics.cpu_percent(),
+                })
+
+                total_memory = container_metrics.physical_memory()
+                used_memory = container_metrics.memory_pss()
+                memory_stat = container_metrics.memory_stat()
+
+                res["content"]["host_virtual_memory"].update({
+                    "total": total_memory,
+                    "used": used_memory,
+                    "percent": (used_memory / total_memory) * 100 if total_memory > 0 else 0,
+                    "free": total_memory - used_memory,
+                    "available": (total_memory - used_memory) + memory_stat.get("cache", 0) + memory_stat.get("buffers", 0),
+                } | memory_stat)
+
             res["content"].update({"host_usage_flag": config.show_host_usage})
-            out = json.dumps(res, default=date_default)
+            out = json.dumps(res, default=json_default)
         client.stop_channels()
         self.write(out)

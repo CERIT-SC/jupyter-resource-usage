@@ -297,6 +297,7 @@ const KernelUsage = (props: {
               </div>
               <div className="jp-KernelUsage-separator">
                 {props.trans.__('CPU:')} {usage.kernel_cpu}
+                {'%'}
               </div>
               <div className="jp-KernelUsage-separator">
                 {props.trans.__('Memory:')}{' '}
@@ -308,16 +309,17 @@ const KernelUsage = (props: {
                   <h4 className="jp-KernelUsage-section-separator">
                     {props.trans.__('Host CPU')}
                   </h4>
-                  {usage.host_cpu_percent && (
-                    <div className="jp-KernelUsage-separator">
-                      {props.trans._n(
-                        '%2%% used on %1 CPU',
-                        '%2%% used on %1 CPUs',
-                        usage.cpu_count,
-                        usage.host_cpu_percent.toFixed(1)
-                      )}
-                    </div>
-                  )}
+                  {usage.host_cpu_percent !== null &&
+                    usage.host_cpu_percent !== undefined && (
+                      <div className="jp-KernelUsage-separator">
+                        {props.trans._n(
+                          '%2%% used on %1 CPU',
+                          '%2%% used on %1 CPUs',
+                          usage.cpu_count,
+                          usage.host_cpu_percent.toFixed(1)
+                        )}
+                      </div>
+                    )}
                   <h4 className="jp-KernelUsage-section-separator">
                     {props.trans.__('Host Virtual Memory')}
                   </h4>

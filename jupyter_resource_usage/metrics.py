@@ -4,7 +4,7 @@ except ImportError:
     psutil = None
 
 import os
-import subprocess
+from tornado.concurrent import run_on_executor
 from jupyter_server.serverapp import ServerApp
 
 
@@ -97,7 +97,7 @@ class PSUtilMetricsLoader:
 
 class ContainerMetricsLoader:
     @staticmethod
-    def get_cpu_count():
+    def cpu_count():
         v2_cpu_max = "/sys/fs/cgroup/cpu.max"
         v1_cpu_quota = "/sys/fs/cgroup/cpu/cpu.cfs_quota_us"
         v1_cpu_period = "/sys/fs/cgroup/cpu/cpu.cfs_period_us"
@@ -118,24 +118,26 @@ class ContainerMetricsLoader:
 
         return int(cpu_quota) // int(cpu_period) if int(cpu_period) > 0 else 1
     
-    @staticmethod
-    def get_cpu_percent():
-        v2_cpu_usage = "/sys/fs/cgroup/cpu.stat"
-        v1_cpu_usage = "/sys/fs/cgroup/cpu/cpuacct.usage"
+    @classmethod
+    def cpu_percent(cls):
+        if psutil is None:
+            return 0
+        cur_process = psutil.Process()
+        all_processes = [cur_process] + cur_process.children(recursive=True)
 
-        if os.path.exists(v2_cpu_usage):
-            with open(v2_cpu_usage) as usage:
-                for line in usage:
-                    if line.startswith("usage_usec"):
-                        return int(line.split()[1]) / 1000000.0
-        elif os.path.exists(v1_cpu_usage):
-            with open(v1_cpu_usage) as usage:
-                return int(usage.read().strip()) / 1000000.0
-        
-        return psutil.cpu_percent(interval=0.05)
+        def get_cpu_percent(p):
+            try:
+                return p.cpu_percent(interval=0.05)
+            except:
+                return 0
+
+        percent_sum = sum([get_cpu_percent(p) for p in all_processes])
+        cpu_count = cls.cpu_count()
+
+        return percent_sum / cpu_count if cpu_count > 0 else percent_sum
 
     @staticmethod
-    def get_physical_memory():
+    def physical_memory():
         v2_mem_limit = '/sys/fs/cgroup/memory.max'
         v1_mem_limit = '/sys/fs/cgroup/memory/memory.limit_in_bytes'
 
@@ -152,7 +154,7 @@ class ContainerMetricsLoader:
         return mem_limit
 
     @staticmethod
-    def get_memory_pss():
+    def memory_pss():
         v2_mem_usage = "/sys/fs/cgroup/memory.current"
         v1_mem_usage = "/sys/fs/cgroup/memory/memory.usage_in_bytes"
 
@@ -168,7 +170,7 @@ class ContainerMetricsLoader:
         return mem_usage
 
     @staticmethod
-    def get_memory_rss():
+    def memory_rss():
         v2_mem_stat = "/sys/fs/cgroup/memory.stat"
         v1_mem_stat = "/sys/fs/cgroup/memory/memory.stat"
 
@@ -186,3 +188,34 @@ class ContainerMetricsLoader:
                 if stat[0] in ['rss', 'inactive_file', 'active_file']:
                     real_rss += int(stat[1])
         return real_rss
+
+    @staticmethod
+    def memory_stat():
+        v2_mem_stat = "/sys/fs/cgroup/memory.stat"
+
+        if os.path.exists(v2_mem_stat):
+            stat_path = v2_mem_stat
+
+        stats = {}
+        with open(stat_path, "r") as f:
+            for line in f:
+                k, v = line.split()
+                stats[k] = int(v)
+
+        active = stats.get("active_anon", 0) + stats.get("active_file", 0)
+        inactive = stats.get("inactive_anon", 0) + stats.get("inactive_file", 0)
+        slab = stats.get("slab", 0)
+        shared = stats.get("shmem", 0)
+        buffers = stats.get("buffers", 0)
+        cached = stats.get("cache", stats.get("file", 0))
+
+        result = {
+            "active": active,
+            "inactive": inactive,
+            "buffers": buffers,
+            "cached": cached,
+            "shared": shared,
+            "slab": slab,
+        }
+
+        return result

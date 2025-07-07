@@ -205,7 +205,7 @@ class ResourceUseDisplay(Configurable):
     ).tag(config=True)
 
     is_container = Bool(
-        default_value=False,
+        default_value=True,
         help="""
         Set to True if the Jupyter server is running in a container.
         This will change the way some metrics are calculated.
@@ -214,4 +214,4 @@ class ResourceUseDisplay(Configurable):
 
     @default("is_container")
     def _is_container_default(self):
-        return bool(os.environ.get("IS_CONTAINER", False))
+        return bool(os.environ.get("IS_CONTAINER", True))
