@@ -1,10 +1,9 @@
+import dataclasses
 import json
 from concurrent.futures import ThreadPoolExecutor
 from inspect import isawaitable
-import subprocess
-import xml.etree.ElementTree as ET
 
-from jupyter_resource_usage.metrics import ContainerMetricsLoader
+from jupyter_resource_usage.metrics import ContainerMetricsLoader, GPUMetricsLoader
 import psutil
 import zmq.asyncio
 from jupyter_client.jsonutil import json_default
@@ -23,8 +22,6 @@ except ImportError:
     USAGE_IS_SUPPORTED = False
     IPYKERNEL_VERSION = None
 
-HAS_NVIDIA_SMI = True
-
 class ApiHandler(APIHandler):
     executor = ThreadPoolExecutor(max_workers=5)
 
@@ -34,7 +31,8 @@ class ApiHandler(APIHandler):
         Calculate and return current resource usage metrics
         """
         config = self.settings["jupyter_resource_usage_display_config"]
-        container_metrics = ContainerMetricsLoader()
+        container_metrics_loader = ContainerMetricsLoader()
+        gpu_metrics_loader = GPUMetricsLoader()
 
         cur_process = psutil.Process()
         all_processes = [cur_process] + cur_process.children(recursive=True)
@@ -58,9 +56,9 @@ class ApiHandler(APIHandler):
                 mem_limit = config.mem_limit
         else:
             # Get memory information from container cgroup
-            mem_limit = container_metrics.physical_memory()
-            rss = container_metrics.memory_rss()
-            pss = container_metrics.memory_pss()
+            mem_limit = container_metrics_loader.physical_memory()
+            rss = container_metrics_loader.memory_rss()
+            pss = container_metrics_loader.memory_pss()
 
         limits = {"memory": {"rss": mem_limit, "pss": mem_limit}}
         if config.mem_limit and config.mem_warning_threshold != 0:
@@ -78,7 +76,7 @@ class ApiHandler(APIHandler):
             if not config.is_container:
                 cpu_count = psutil.cpu_count()
             else:
-                cpu_count = container_metrics.cpu_count()
+                cpu_count = container_metrics_loader.cpu_count()
             
             cpu_percent = await self._get_cpu_percent(all_processes) / cpu_count
 
@@ -105,15 +103,17 @@ class ApiHandler(APIHandler):
                         disk_info.total * config.disk_warning_threshold
                     )
 
-        if config.track_gpu_mem_usage:
-            gpu_usage = self.__get_gpu_usage()
-            if gpu_usage is not None:
-                used, total = gpu_usage
-                metrics.update(gpu_mem_used=used, gpu_mem_total=total)
-                limits["gpu_mem"] = {"gpu_mem": total}
+        if config.track_gpu_usage:
+            gpu_metrics = gpu_metrics_loader.get_gpu_metrics()
+            if gpu_metrics is not None:
+                # to MB
+                mem_used = gpu_metrics.mem_used // 1024**2
+                mem_total = gpu_metrics.mem_total // 1024**2
+                metrics.update(gpu_mem_used=mem_used, gpu_mem_total=mem_total)
+                limits["gpu_mem"] = {"gpu_mem": mem_total}
                 if config.gpu_mem_warning_threshold != 0:
-                    limits["gpu_mem"]["warn"] = (total - used) < (
-                        total * config.gpu_mem_warning_threshold
+                    limits["gpu_mem"]["warn"] = (mem_total - mem_used) < (
+                        mem_total * config.gpu_mem_warning_threshold
                     )
 
         self.write(json.dumps(metrics))
@@ -129,58 +129,6 @@ class ApiHandler(APIHandler):
                 return 0
 
         return sum([get_cpu_percent(p) for p in all_processes])
-  
-    @staticmethod
-    def __extract_gpu_memory_info(xml_str):
-        root = ET.fromstring(xml_str)
-
-        gpu = root.find('gpu')
-        main_fb_memory = gpu.find('fb_memory_usage')
-        try: 
-            main_memory = (
-                int(main_fb_memory.find('used').text.strip().split(" ")[0]),
-                int(main_fb_memory.find('total').text.strip().split(" ")[0])
-            )
-        except ValueError:
-            main_memory = None
-
-        mig_devices = gpu.find('mig_devices')
-        if mig_devices is not None:
-            mig_memory = (0, 0)
-            for mig_device in mig_devices.findall('mig_device'):
-                fb_memory = mig_device.find('fb_memory_usage')
-                if fb_memory is not None:
-                    mig_memory = (
-                        mig_memory[0] + int(fb_memory.find('used').text.strip().split(" ")[0]),
-                        mig_memory[1] + int(fb_memory.find('total').text.strip().split(" ")[0])
-                    )
-
-        result_mib = main_memory if main_memory is not None else mig_memory
-        result_mb = tuple([mib * (1024**2) / (1000**2) for mib in result_mib])
-
-        return result_mb
-
-    @classmethod
-    def __get_gpu_usage(cls) -> tuple[int, int] | None:
-        global HAS_NVIDIA_SMI
-
-        if not HAS_NVIDIA_SMI:
-            return None
-
-        try:
-            result = subprocess.run(
-                ['nvidia-smi', '--query', '--xml-format'],
-                capture_output=True, text=True, check=True
-            )
-            used, total = cls.__extract_gpu_memory_info(result.stdout)
-            return used, total
-        except FileNotFoundError:
-            HAS_NVIDIA_SMI = False
-            print("nvidia-smi command not found. GPU metrics will not be available.")
-            return None
-        except subprocess.CalledProcessError as e:
-            print(f"Error running nvidia-smi: {e}")
-            return None
 
 
 class KernelUsageHandler(APIHandler):
@@ -250,6 +198,14 @@ class KernelUsageHandler(APIHandler):
                     "free": total_memory - used_memory,
                     "available": (total_memory - used_memory) + memory_stat.get("cache", 0) + memory_stat.get("buffers", 0),
                 } | memory_stat)
+
+
+            if config.track_gpu_usage:
+                gpu_metrics_loader = GPUMetricsLoader()
+                gpu_metrics = gpu_metrics_loader.get_gpu_metrics()
+
+                if gpu_metrics is not None:
+                    res["content"]["gpu"] =  dataclasses.asdict(gpu_metrics)
 
             res["content"].update({"host_usage_flag": config.show_host_usage})
             out = json.dumps(res, default=json_default)

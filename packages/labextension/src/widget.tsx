@@ -30,6 +30,20 @@ type Usage = {
     used: number;
     wired: number;
   };
+  gpu?: {
+    power: number;
+    temperature: number;
+    gpu_clock: number;
+    gpu_clock_max: number;
+    sm_clock: number;
+    sm_clock_max: number;
+    mem_clock: number;
+    mem_clock_max: number;
+    is_mig: boolean;
+    mem_total: number;
+    mem_used: number;
+    mem_free: number;
+  };
 };
 
 const POLL_INTERVAL_SEC = 5;
@@ -353,6 +367,52 @@ const KernelUsage = (props: {
                     {props.trans.__('Wired:')}{' '}
                     {formatForDisplay(usage.host_virtual_memory.wired)}
                   </div>
+                  {usage.gpu && (
+                    <>
+                      <h4 className="jp-KernelUsage-section-separator">
+                        {props.trans.__('Host GPU')}
+                      </h4>
+                      <div className="jp-KernelUsage-separator">
+                        {props.trans.__('Power: ')}
+                        {usage.gpu.power}W
+                      </div>
+                      <div className="jp-KernelUsage-separator">
+                        {props.trans.__('Temperature: ')}
+                        {usage.gpu.temperature}
+                        °C
+                      </div>
+                      <div className="jp-KernelUsage-separator">
+                        {props.trans.__('GPU clock: ')}
+                        {usage.gpu.gpu_clock} / {usage.gpu.gpu_clock_max}MHz
+                      </div>
+                      <div className="jp-KernelUsage-separator">
+                        {props.trans.__('SM clock: ')}
+                        {usage.gpu.sm_clock} / {usage.gpu.sm_clock_max}MHz
+                      </div>
+                      <div className="jp-KernelUsage-separator">
+                        {props.trans.__('Memory clock: ')}
+                        {usage.gpu.mem_clock}
+                        {' / '}
+                        {usage.gpu.mem_clock_max}MHz
+                      </div>
+                      <div className="jp-KernelUsage-separator">
+                        {props.trans.__('MIG mode: ')}
+                        {usage.gpu.is_mig ? 'Yes' : 'No'}
+                      </div>
+                      <div className="jp-KernelUsage-separator">
+                        {props.trans.__('Memory total: ')}
+                        {formatForDisplay(usage.gpu.mem_total, 'MB')}
+                      </div>
+                      <div className="jp-KernelUsage-separator">
+                        {props.trans.__('Memory used: ')}
+                        {formatForDisplay(usage.gpu.mem_used, 'MB')}
+                      </div>
+                      <div className="jp-KernelUsage-separator">
+                        {props.trans.__('Memory free: ')}
+                        {formatForDisplay(usage.gpu.mem_free, 'MB')}
+                      </div>
+                    </>
+                  )}
                 </>
               ) : null}
             </>

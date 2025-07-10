@@ -170,7 +170,7 @@ class ResourceUseDisplay(Configurable):
         """,
     ).tag(config=True)
 
-    track_gpu_mem_usage = Bool(
+    track_gpu_usage = Bool(
         default_value=True,
         help="""
         Set to True in order to enable reporting of GPU usage statistics.

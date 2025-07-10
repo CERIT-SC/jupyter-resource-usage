@@ -3,6 +3,14 @@ try:
 except ImportError:
     psutil = None
 
+try:
+    import pynvml
+    pynvml.nvmlInit()
+except:
+    # pynvml is not installed or the NVIDIA driver is not available
+    pynvml = None 
+
+from dataclasses import dataclass
 import os
 from tornado.concurrent import run_on_executor
 from jupyter_server.serverapp import ServerApp
@@ -219,3 +227,80 @@ class ContainerMetricsLoader:
         }
 
         return result
+
+@dataclass
+class GPUMetrics:
+    power: int
+    temperature: int
+    gpu_clock: int
+    gpu_clock_max: int
+    sm_clock: int
+    sm_clock_max: int
+    mem_clock: int
+    mem_clock_max: int
+    mem_total: int
+    mem_used: int
+    mem_free: int
+    is_mig: bool = False
+
+class GPUMetricsLoader:
+    @staticmethod
+    def get_gpu_metrics() -> GPUMetrics | None:
+        if pynvml is None:
+            return None
+
+        try:
+            handle = pynvml.nvmlDeviceGetHandleByIndex(0)  # Get the first GPU
+        except pynvml.NVMLError as e:
+            print(f"Error getting GPU handle: {e}")
+            return None
+
+        power = pynvml.nvmlDeviceGetPowerUsage(handle) // 1000
+        temperature = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
+        gpu_clock = pynvml.nvmlDeviceGetClockInfo(handle, pynvml.NVML_CLOCK_GRAPHICS)
+        gpu_clock_max = pynvml.nvmlDeviceGetMaxClockInfo(handle, pynvml.NVML_CLOCK_GRAPHICS)
+        sm_clock = pynvml.nvmlDeviceGetClockInfo(handle, pynvml.NVML_CLOCK_SM)
+        sm_clock_max = pynvml.nvmlDeviceGetMaxClockInfo(handle, pynvml.NVML_CLOCK_SM)
+        mem_clock = pynvml.nvmlDeviceGetClockInfo(handle, pynvml.NVML_CLOCK_MEM)
+        mem_clock_max = pynvml.nvmlDeviceGetMaxClockInfo(handle, pynvml.NVML_CLOCK_MEM)
+        mem_total = 0
+        mem_used = 0
+        mem_free = 0
+
+        mig_mode, _ = pynvml.nvmlDeviceGetMigMode(handle)
+        if mig_mode != pynvml.NVML_DEVICE_MIG_ENABLE:
+            is_mig = False
+            try:
+                mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                mem_total = mem_info.total
+                mem_used = mem_info.used
+                mem_free = mem_info.free
+            except pynvml.NVMLError as e:
+                print(f"Error getting memory info: {e}")
+        else:
+            is_mig = True
+            try:
+                mig_handle = pynvml.nvmlDeviceGetMigDeviceHandleByIndex(handle, 0)
+                mem_info = pynvml.nvmlDeviceGetMemoryInfo(mig_handle)
+                mem_total = mem_info.total
+                mem_used = mem_info.used
+                mem_free = mem_info.free
+            except pynvml.NVMLError as e:
+                print(f"Error getting MIG info: {e}")
+
+        return GPUMetrics(
+            power=power,
+            temperature=temperature,
+            gpu_clock=gpu_clock,
+            gpu_clock_max=gpu_clock_max,
+            sm_clock=sm_clock,
+            sm_clock_max=sm_clock_max,
+            mem_clock=mem_clock,
+            mem_clock_max=mem_clock_max,
+            mem_total=mem_total,
+            mem_used=mem_used,
+            mem_free=mem_free,
+            is_mig=is_mig
+        )
+
+        
