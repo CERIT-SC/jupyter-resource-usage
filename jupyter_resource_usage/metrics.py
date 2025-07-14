@@ -241,6 +241,8 @@ class GPUMetrics:
     mem_total: int
     mem_used: int
     mem_free: int
+    gpu_utilization: int | None = None
+    mem_utilization: int | None = None
     is_mig: bool = False
 
 class GPUMetricsLoader:
@@ -263,15 +265,24 @@ class GPUMetricsLoader:
         sm_clock_max = pynvml.nvmlDeviceGetMaxClockInfo(handle, pynvml.NVML_CLOCK_SM)
         mem_clock = pynvml.nvmlDeviceGetClockInfo(handle, pynvml.NVML_CLOCK_MEM)
         mem_clock_max = pynvml.nvmlDeviceGetMaxClockInfo(handle, pynvml.NVML_CLOCK_MEM)
+        gpu_utilization = None
+        mem_utilization = None
         mem_total = 0
         mem_used = 0
         mem_free = 0
 
-        mig_mode, _ = pynvml.nvmlDeviceGetMigMode(handle)
+        try:
+            mig_mode, _ = pynvml.nvmlDeviceGetMigMode(handle)
+        except pynvml.NVMLError:
+            mig_mode = pynvml.NVML_DEVICE_MIG_DISABLE
+
         if mig_mode != pynvml.NVML_DEVICE_MIG_ENABLE:
             is_mig = False
             try:
                 mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+                gpu_utilization = utilization.gpu
+                mem_utilization = utilization.memory
                 mem_total = mem_info.total
                 mem_used = mem_info.used
                 mem_free = mem_info.free
@@ -300,7 +311,8 @@ class GPUMetricsLoader:
             mem_total=mem_total,
             mem_used=mem_used,
             mem_free=mem_free,
-            is_mig=is_mig
+            is_mig=is_mig,
+            gpu_utilization=gpu_utilization,
+            mem_utilization=mem_utilization,
         )
-
         

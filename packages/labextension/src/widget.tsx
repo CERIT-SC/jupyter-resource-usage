@@ -43,6 +43,8 @@ type Usage = {
     mem_total: number;
     mem_used: number;
     mem_free: number;
+    gpu_utilization?: number;
+    mem_utilization?: number;
   };
 };
 
@@ -373,6 +375,36 @@ const KernelUsage = (props: {
                         {props.trans.__('Host GPU')}
                       </h4>
                       <div className="jp-KernelUsage-separator">
+                        {props.trans.__('MIG mode: ')}
+                        {usage.gpu.is_mig ? 'Yes' : 'No'}
+                      </div>
+                      <div className="jp-KernelUsage-separator">
+                        {props.trans.__('Memory total: ')}
+                        {formatForDisplay(usage.gpu.mem_total, 'MB')}
+                      </div>
+                      <div className="jp-KernelUsage-separator">
+                        {props.trans.__('Memory used: ')}
+                        {formatForDisplay(usage.gpu.mem_used, 'MB')}
+                      </div>
+                      <div className="jp-KernelUsage-separator">
+                        {props.trans.__('Memory free: ')}
+                        {formatForDisplay(usage.gpu.mem_free, 'MB')}
+                      </div>
+                      {usage.gpu.gpu_utilization !== null &&
+                        usage.gpu.gpu_utilization !== undefined && (
+                          <div className="jp-KernelUsage-separator">
+                            {props.trans.__('GPU Utilization: ')}
+                            {usage.gpu.gpu_utilization}%
+                          </div>
+                        )}
+                      {usage.gpu.mem_utilization !== null &&
+                        usage.gpu.mem_utilization !== undefined && (
+                          <div className="jp-KernelUsage-separator">
+                            {props.trans.__('Memory Utilization: ')}
+                            {usage.gpu.mem_utilization}%
+                          </div>
+                        )}
+                      <div className="jp-KernelUsage-separator">
                         {props.trans.__('Power: ')}
                         {usage.gpu.power}W
                       </div>
@@ -394,22 +426,6 @@ const KernelUsage = (props: {
                         {usage.gpu.mem_clock}
                         {' / '}
                         {usage.gpu.mem_clock_max}MHz
-                      </div>
-                      <div className="jp-KernelUsage-separator">
-                        {props.trans.__('MIG mode: ')}
-                        {usage.gpu.is_mig ? 'Yes' : 'No'}
-                      </div>
-                      <div className="jp-KernelUsage-separator">
-                        {props.trans.__('Memory total: ')}
-                        {formatForDisplay(usage.gpu.mem_total, 'MB')}
-                      </div>
-                      <div className="jp-KernelUsage-separator">
-                        {props.trans.__('Memory used: ')}
-                        {formatForDisplay(usage.gpu.mem_used, 'MB')}
-                      </div>
-                      <div className="jp-KernelUsage-separator">
-                        {props.trans.__('Memory free: ')}
-                        {formatForDisplay(usage.gpu.mem_free, 'MB')}
                       </div>
                     </>
                   )}
