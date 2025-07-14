@@ -312,8 +312,7 @@ const KernelUsage = (props: {
                 {props.trans.__('Process ID:')} {usage.pid}
               </div>
               <div className="jp-KernelUsage-separator">
-                {props.trans.__('CPU:')} {usage.kernel_cpu}
-                {'%'}
+                {props.trans.__('CPU:')} {usage.kernel_cpu.toFixed(1)}%
               </div>
               <div className="jp-KernelUsage-separator">
                 {props.trans.__('Memory:')}{' '}
@@ -340,33 +339,33 @@ const KernelUsage = (props: {
                     {props.trans.__('Host Virtual Memory')}
                   </h4>
                   <div className="jp-KernelUsage-separator">
-                    {props.trans.__('Active:')}{' '}
+                    {props.trans.__('Active: ')}
                     {formatForDisplay(usage.host_virtual_memory.active)}
                   </div>
                   <div className="jp-KernelUsage-separator">
-                    {props.trans.__('Available:')}{' '}
+                    {props.trans.__('Available: ')}
                     {formatForDisplay(usage.host_virtual_memory.available)}
                   </div>
                   <div className="jp-KernelUsage-separator">
-                    {props.trans.__('Free:')}{' '}
+                    {props.trans.__('Free: ')}
                     {formatForDisplay(usage.host_virtual_memory.free)}
                   </div>
                   <div className="jp-KernelUsage-separator">
-                    {props.trans.__('Inactive:')}{' '}
+                    {props.trans.__('Inactive: ')}
                     {formatForDisplay(usage.host_virtual_memory.inactive)}
                   </div>
                   {usage.host_virtual_memory.percent && (
                     <div className="jp-KernelUsage-separator">
-                      {props.trans.__('Percent used:')}{' '}
+                      {props.trans.__('Percent used: ')}
                       {usage.host_virtual_memory.percent.toFixed(1)}%
                     </div>
                   )}
                   <div className="jp-KernelUsage-separator">
-                    {props.trans.__('Total:')}{' '}
+                    {props.trans.__('Total: ')}
                     {formatForDisplay(usage.host_virtual_memory.total)}
                   </div>
                   <div className="jp-KernelUsage-separator">
-                    {props.trans.__('Wired:')}{' '}
+                    {props.trans.__('Wired: ')}
                     {formatForDisplay(usage.host_virtual_memory.wired)}
                   </div>
                   {usage.gpu && (

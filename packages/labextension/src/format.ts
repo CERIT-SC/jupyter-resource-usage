@@ -22,7 +22,7 @@ export function formatForDisplay(
   units?: MemoryUnit | undefined
 ): string {
   const lu = convertToLargestUnit(numBytes, units);
-  return lu[0].toFixed(2) + ' ' + lu[1];
+  return lu[0].toFixed(1) + ' ' + lu[1];
 }
 
 /**

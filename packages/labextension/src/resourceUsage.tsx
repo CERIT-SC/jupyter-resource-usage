@@ -64,10 +64,9 @@ export class ResourceUsageStatus extends VDomRenderer<ResourceUsage.Model> {
 
     if (this.model.gpuMemoryAvailable) {
       text = `${this.model.gpuLabel} ${this.model.currentGpuMemory.toFixed(
-        Private.DECIMAL_PLACES
+        0
       )} / ${
-        this.model.gpuMemoryLimit &&
-        this.model.gpuMemoryLimit.toFixed(Private.DECIMAL_PLACES)
+        this.model.gpuMemoryLimit && this.model.gpuMemoryLimit.toFixed(0)
       } ${this.model.gpuMemoryUnits} | ${text}`;
     }
 
