@@ -24,6 +24,9 @@ except ImportError:
 
 class ApiHandler(APIHandler):
     executor = ThreadPoolExecutor(max_workers=5)
+    # Cache Process instances so cpu_percent() (without interval) can compare
+    # against the previous measurement instead of always returning 0.
+    _cached_processes = {}
 
     @web.authenticated
     async def get(self):
@@ -36,6 +39,10 @@ class ApiHandler(APIHandler):
 
         cur_process = psutil.Process()
         all_processes = [cur_process] + cur_process.children(recursive=True)
+
+        # Build list using cached Process instances for cpu_percent tracking
+        cached = [ApiHandler._cached_processes.get(p.pid, p) for p in all_processes]
+        ApiHandler._cached_processes = {p.pid: p for p in cached}
 
         if not config.is_container:
             # Get memory information
@@ -72,13 +79,12 @@ class ApiHandler(APIHandler):
 
         # Optionally get CPU information
         if config.track_cpu_percent:
-            
             if not config.is_container:
                 cpu_count = psutil.cpu_count()
             else:
                 cpu_count = container_metrics_loader.cpu_count()
-            
-            cpu_percent = await self._get_cpu_percent(all_processes) / cpu_count
+
+            cpu_percent = await self._get_cpu_percent(cached) / cpu_count
 
             if config.cpu_limit != 0:
                 limits["cpu"] = {"cpu": config.cpu_limit}
@@ -122,7 +128,7 @@ class ApiHandler(APIHandler):
     def _get_cpu_percent(self, all_processes):
         def get_cpu_percent(p):
             try:
-                return p.cpu_percent(interval=0.05)
+                return p.cpu_percent()
             # Avoid littering logs with stack traces complaining
             # about dead processes having no CPU usage
             except:

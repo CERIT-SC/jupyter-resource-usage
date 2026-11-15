@@ -2,6 +2,7 @@ import {
   ILabShell,
   JupyterFrontEnd,
   JupyterFrontEndPlugin,
+  JupyterLab,
 } from '@jupyterlab/application';
 
 import { IToolbarWidgetRegistry } from '@jupyterlab/apputils';
@@ -70,14 +71,27 @@ const resourceStatusPlugin: JupyterFrontEndPlugin<void> = {
   id: '@jupyter-server/resource-usage:status-item',
   autoStart: true,
   requires: [ITranslator],
-  optional: [IStatusBar],
+  optional: [IStatusBar, JupyterLab.IInfo],
   activate: (
     app: JupyterFrontEnd,
     translator: ITranslator,
-    statusBar: IStatusBar | null
+    statusBar: IStatusBar | null,
+    info: JupyterLab.IInfo | null
   ) => {
+    const refreshRate = DEFAULT_REFRESH_RATE;
+    const { serverSettings } = app.serviceManager;
+
     const trans = translator.load('jupyter-resource-usage');
-    const item = new ResourceUsageStatus(trans);
+    const item = new ResourceUsageStatus(trans, {
+      refreshRate,
+      serverSettings,
+      refreshStandby: () => {
+        if (info) {
+          return !info.isConnected || 'when-hidden';
+        }
+        return 'when-hidden';
+      },
+    });
 
     if (statusBar) {
       statusBar.registerStatusItem(resourceStatusPlugin.id, {
@@ -98,12 +112,14 @@ const systemMonitorPlugin: JupyterFrontEndPlugin<void> = {
   id: '@jupyter-server/resource-usage:topbar-item',
   autoStart: true,
   requires: [IToolbarWidgetRegistry],
-  optional: [ISettingRegistry],
+  optional: [ISettingRegistry, JupyterLab.IInfo],
   activate: async (
     app: JupyterFrontEnd,
     toolbarRegistry: IToolbarWidgetRegistry,
-    settingRegistry: ISettingRegistry | null
+    settingRegistry: ISettingRegistry | null,
+    info: JupyterLab.IInfo | null
   ) => {
+    const { serverSettings } = app.serviceManager;
     let enablePlugin = DEFAULT_ENABLE_SYSTEM_MONITOR;
     let refreshRate = DEFAULT_REFRESH_RATE;
     let cpuLabel = DEFAULT_CPU_LABEL;
@@ -126,23 +142,36 @@ const systemMonitorPlugin: JupyterFrontEndPlugin<void> = {
       diskLabel = diskSettings.label;
     }
 
-    const model = new ResourceUsage.Model({ refreshRate });
+    if (!enablePlugin) {
+      return;
+    }
+
+    const model = new ResourceUsage.Model({
+      refreshRate,
+      serverSettings,
+      refreshStandby: () => {
+        if (info) {
+          return !info.isConnected || 'when-hidden';
+        }
+        return 'when-hidden';
+      },
+    });
     await model.refresh();
 
-    if (enablePlugin && model.cpuAvailable) {
+    if (model.cpuAvailable) {
       toolbarRegistry.addFactory('TopBar', 'cpu', () => {
         const cpu = CpuView.createCpuView(model, cpuLabel);
         return cpu;
       });
     }
 
-    if (enablePlugin && model.memoryAvailable) {
+    if (model.memoryAvailable) {
       toolbarRegistry.addFactory('TopBar', 'memory', () => {
         const memory = MemoryView.createMemoryView(model, memoryLabel);
         return memory;
       });
     }
-    if (enablePlugin && model.diskAvailable) {
+    if (model.diskAvailable) {
       toolbarRegistry.addFactory('TopBar', 'disk', () => {
         const disk = DiskView.createDiskView(model, diskLabel);
         return disk;
@@ -167,6 +196,7 @@ const kernelUsagePlugin: JupyterFrontEndPlugin<void> = {
     const trans = translator.load('jupyter-resource-usage');
 
     const { commands, shell } = app;
+    const { serverSettings } = app.serviceManager;
     const category = trans.__('Kernel Resource');
 
     let panel: KernelUsagePanel | null = null;
@@ -182,6 +212,7 @@ const kernelUsagePlugin: JupyterFrontEndPlugin<void> = {
         panel = new KernelUsagePanel({
           tracker,
           trans,
+          serverSettings,
         });
         shell.add(panel, 'right', { rank: 200 });
       }

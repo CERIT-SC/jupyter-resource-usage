@@ -2,6 +2,64 @@
 
 <!-- <START NEW CHANGELOG ENTRY> -->
 
+## 1.3.0
+
+([Full Changelog](https://github.com/jupyter-server/jupyter-resource-usage/compare/@jupyter-server/resource-usage@1.2.1...21df4c7b86cad9430a16ce99d8a9146cdaf593f5))
+
+### Bugs fixed
+
+- Fix `cpu_percent` always returning 0 in status bar/topbar [#259](https://github.com/jupyter-server/jupyter-resource-usage/pull/259) ([@SilviaSWR](https://github.com/SilviaSWR), [@krassowski](https://github.com/krassowski))
+
+### Maintenance and upkeep improvements
+
+- Drop Python 3.9 support (EOL Oct 2025) [#261](https://github.com/jupyter-server/jupyter-resource-usage/pull/261) ([@SilviaSWR](https://github.com/SilviaSWR), [@krassowski](https://github.com/krassowski))
+
+### Contributors to this release
+
+The following people contributed discussions, new ideas, code and documentation contributions, and review.
+See [our definition of contributors](https://github-activity.readthedocs.io/en/latest/use/#how-does-this-tool-define-contributions-in-the-reports).
+
+([GitHub contributors page for this release](https://github.com/jupyter-server/jupyter-resource-usage/graphs/contributors?from=2026-03-31&to=2026-08-11&type=c))
+
+@krassowski ([activity](https://github.com/search?q=repo%3Ajupyter-server%2Fjupyter-resource-usage+involves%3Akrassowski+updated%3A2026-03-31..2026-08-11&type=Issues)) | @SilviaSWR ([activity](https://github.com/search?q=repo%3Ajupyter-server%2Fjupyter-resource-usage+involves%3ASilviaSWR+updated%3A2026-03-31..2026-08-11&type=Issues))
+
+<!-- <END NEW CHANGELOG ENTRY> -->
+
+## 1.2.1
+
+([Full Changelog](https://github.com/jupyter-server/jupyter-resource-usage/compare/@jupyter-server/resource-usage@1.2.0...f7b5b86032811faa1f6cfefd3caca25eacc7395c))
+
+### Bugs fixed
+
+- Use `serverSettings` for API requests [#256](https://github.com/jupyter-server/jupyter-resource-usage/pull/256) ([@jtpio](https://github.com/jtpio), [@krassowski](https://github.com/krassowski))
+
+### Maintenance and upkeep improvements
+
+- Align `black` version to fix the failing CI [#257](https://github.com/jupyter-server/jupyter-resource-usage/pull/257) ([@jtpio](https://github.com/jtpio), [@krassowski](https://github.com/krassowski))
+
+### Contributors to this release
+
+The following people contributed discussions, new ideas, code and documentation contributions, and review.
+See [our definition of contributors](https://github-activity.readthedocs.io/en/latest/use/#how-does-this-tool-define-contributions-in-the-reports).
+
+([GitHub contributors page for this release](https://github.com/jupyter-server/jupyter-resource-usage/graphs/contributors?from=2025-08-19&to=2026-03-31&type=c))
+
+@jtpio ([activity](https://github.com/search?q=repo%3Ajupyter-server%2Fjupyter-resource-usage+involves%3Ajtpio+updated%3A2025-08-19..2026-03-31&type=Issues)) | @krassowski ([activity](https://github.com/search?q=repo%3Ajupyter-server%2Fjupyter-resource-usage+involves%3Akrassowski+updated%3A2025-08-19..2026-03-31&type=Issues))
+
+## 1.2.0
+
+([Full Changelog](https://github.com/jupyter-server/jupyter-resource-usage/compare/@jupyter-server/resource-usage@1.1.1...f2ea9229a73cca8a818ced6414255734dec5532b))
+
+### Enhancements made
+
+- Configure `standby` callback to polling [#247](https://github.com/jupyter-server/jupyter-resource-usage/pull/247) ([@mahendrapaipuri](https://github.com/mahendrapaipuri))
+
+### Contributors to this release
+
+([GitHub contributors page for this release](https://github.com/jupyter-server/jupyter-resource-usage/graphs/contributors?from=2025-02-04&to=2025-08-19&type=c))
+
+[@jtpio](https://github.com/search?q=repo%3Ajupyter-server%2Fjupyter-resource-usage+involves%3Ajtpio+updated%3A2025-02-04..2025-08-19&type=Issues) | [@mahendrapaipuri](https://github.com/search?q=repo%3Ajupyter-server%2Fjupyter-resource-usage+involves%3Amahendrapaipuri+updated%3A2025-02-04..2025-08-19&type=Issues)
+
 ## 1.1.1
 
 ([Full Changelog](https://github.com/jupyter-server/jupyter-resource-usage/compare/@jupyter-server/resource-usage@1.1.0...6d739a7cda47c1101f0c70e16806739cf6b0c575))
@@ -24,8 +82,6 @@
 ([GitHub contributors page for this release](https://github.com/jupyter-server/jupyter-resource-usage/graphs/contributors?from=2024-07-31&to=2025-02-04&type=c))
 
 [@evsasha](https://github.com/search?q=repo%3Ajupyter-server%2Fjupyter-resource-usage+involves%3Aevsasha+updated%3A2024-07-31..2025-02-04&type=Issues) | [@jtpio](https://github.com/search?q=repo%3Ajupyter-server%2Fjupyter-resource-usage+involves%3Ajtpio+updated%3A2024-07-31..2025-02-04&type=Issues) | [@krassowski](https://github.com/search?q=repo%3Ajupyter-server%2Fjupyter-resource-usage+involves%3Akrassowski+updated%3A2024-07-31..2025-02-04&type=Issues) | [@pinksi](https://github.com/search?q=repo%3Ajupyter-server%2Fjupyter-resource-usage+involves%3Apinksi+updated%3A2024-07-31..2025-02-04&type=Issues) | [@welcome](https://github.com/search?q=repo%3Ajupyter-server%2Fjupyter-resource-usage+involves%3Awelcome+updated%3A2024-07-31..2025-02-04&type=Issues)
-
-<!-- <END NEW CHANGELOG ENTRY> -->
 
 ## 1.1.0
 
