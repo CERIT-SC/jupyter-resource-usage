@@ -1,3 +1,5 @@
+import logging
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 from prometheus_client import Gauge
@@ -17,6 +19,15 @@ class PrometheusHandler(Callable):
         self.metricsloader = metricsloader
         self.config = metricsloader.config
         self.session_manager = metricsloader.server_app.session_manager
+        self.log = getattr(metricsloader.server_app, "log", logging.getLogger(__name__))
+        # psutil sampling blocks: cpu_percent(interval=0.05) waits 50 ms per
+        # process, so a tree of 9 processes takes ~0.45 s. Run on the server's
+        # event loop (as before), that froze every terminal, kernel message and
+        # request once per second. One worker thread keeps updates in order.
+        self._executor = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="resource-usage-metrics"
+        )
+        self._pending = None
 
         gauge_names = [
             "total_memory",
@@ -31,7 +42,21 @@ class PrometheusHandler(Callable):
             gauge = Gauge(phrase, "counter for " + phrase.replace("_", " "), [])
             setattr(self, phrase.upper(), gauge)
 
-    async def __call__(self, *args, **kwargs):
+    def __call__(self, *args, **kwargs):
+        """Called by a PeriodicCallback on the event loop: only hand off the work."""
+        if self._pending is not None and not self._pending.done():
+            return  # previous update still running; skip this tick
+        self._pending = self._executor.submit(self._update)
+        self._pending.add_done_callback(self._log_failure)
+
+    def _log_failure(self, future):
+        if not future.cancelled() and future.exception() is not None:
+            self.log.error(
+                "jupyter_resource_usage: updating Prometheus metrics failed",
+                exc_info=future.exception(),
+            )
+
+    def _update(self):
         memory_metric_values = self.metricsloader.memory_metrics()
         if memory_metric_values is not None:
             self.TOTAL_MEMORY_USAGE.set(memory_metric_values["memory_info_rss"])
