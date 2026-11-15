@@ -126,20 +126,28 @@ class ContainerMetricsLoader:
 
         return int(cpu_quota) // int(cpu_period) if int(cpu_period) > 0 else 1
     
+    # Process instances kept between calls, so cpu_percent() without an
+    # interval measures since the previous call instead of sleeping 50 ms per
+    # process. Sleeping here froze the server: the kernel usage handler calls
+    # this on the event loop. Same approach as ApiHandler._cached_processes.
+    _cached_processes = {}
+
     @classmethod
     def cpu_percent(cls):
         if psutil is None:
             return 0
         cur_process = psutil.Process()
         all_processes = [cur_process] + cur_process.children(recursive=True)
+        cached = [cls._cached_processes.get(p.pid, p) for p in all_processes]
+        cls._cached_processes = {p.pid: p for p in cached}
 
         def get_cpu_percent(p):
             try:
-                return p.cpu_percent(interval=0.05)
-            except:
+                return p.cpu_percent()
+            except Exception:
                 return 0
 
-        percent_sum = sum([get_cpu_percent(p) for p in all_processes])
+        percent_sum = sum([get_cpu_percent(p) for p in cached])
         cpu_count = cls.cpu_count()
 
         return percent_sum / cpu_count if cpu_count > 0 else percent_sum
